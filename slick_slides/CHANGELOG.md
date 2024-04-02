@@ -1,3 +1,7 @@
+## 0.2.2
+
+* Adds toggle for presenter view.
+
 ## 0.2.1
 
 * Adds presenter view.

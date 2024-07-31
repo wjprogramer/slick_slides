@@ -19,6 +19,18 @@ dependencies:
   diff_match_patch: ^0.4.1
   syntax_highlight: ^0.3.0
   video_player: ^2.8.1
+  slick_slides_client:
+  serverpod_flutter:
+
+dependency_overrides:
+  slick_slides_client:
+    path: ../slick_slides_client
+  serverpod_flutter: 
+    path: /Users/viktor/Projects/tests/serverpod/packages/serverpod_flutter 
+  serverpod_client: 
+    path: /Users/viktor/Projects/tests/serverpod/packages/serverpod_client 
+  serverpod_serialization: 
+    path: /Users/viktor/Projects/tests/serverpod/packages/serverpod_serialization
 
 dev_dependencies:
   flutter_test:
@@ -26,3 +38,5 @@ dev_dependencies:
   flutter_lints: ^2.0.0
 
 flutter:
+  assets:
+    - assets/

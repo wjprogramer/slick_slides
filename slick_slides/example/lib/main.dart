@@ -42,6 +42,14 @@ const _codeExampleB = '''class MyHomePage extends StatelessWidget {
   }
 }''';
 
+const _appCode = '''Scaffold(
+  appBar: AppBar(
+    title: const Text('My App'),
+    backgroundColor: Theme.of(context).
+        colorScheme.inversePrimary,
+  ),
+)''';
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -67,6 +75,7 @@ class MyHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SlideDeck(
+      connectToServerExperimental: true,
       slides: [
         FullScreenImageSlide(
           image: const AssetImage('assets/logo-background.jpg'),
@@ -75,6 +84,15 @@ class MyHomePage extends StatelessWidget {
           alignment: const Alignment(0.6, 0.0),
           theme: const SlideThemeData.darkAlt(),
           transition: _defaultTransition,
+        ),
+        DeviceSlide(
+          app: Scaffold(
+            appBar: AppBar(
+              title: const Text('My App'),
+              backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+            ),
+          ),
+          formattedCode: FormattedCode(code: _appCode),
         ),
         BulletsSlide(
           title: 'What is Slick Slides?',

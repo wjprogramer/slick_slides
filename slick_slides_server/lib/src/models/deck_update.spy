@@ -1,0 +1,4 @@
+class: DeckState
+fields:
+ isConnected: bool
+ presenterNote: String?

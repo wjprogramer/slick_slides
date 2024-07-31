@@ -56,7 +56,7 @@ use_top_domain_for_web = false
 # The definition of the server instances to deploy. Note that if you change the
 # region, you will have to change the AMI as they are bound to specific regions.
 # Serverpod is tested with Amazon Linux 2 Kernel 5.x (You can find the AMI ids
-# for a specifc region under EC2 > AMI Catalog in your AWS console.)
+# for a specific region under EC2 > AMI Catalog in your AWS console.)
 # Note: For some regions the t2.micro is not available. If so, consult the AWS
 # documentation to find another instance type that suits your needs.
 instance_type                = "t2.micro"
@@ -81,8 +81,8 @@ staging_autoscaling_desired_capacity = 1
 
 # The deployment bucket name needs to be unique and can only contain lower case
 # letters and dashes (no underscored allowed).
-deployment_bucket_name              = "slick-slides-deployment-1661523"
-public_storage_bucket_name          = "slick-slides-public-storage-1661523"
-private_storage_bucket_name         = "slick-slides-private-storage-1661523"
-public_storage_bucket_name_staging  = "slick-slides-public-storage-staging-1661523"
-private_storage_bucket_name_staging = "slick-slides-private-storage-staging-1661523"
+deployment_bucket_name              = "slick-slides-deployment-3835468"
+public_storage_bucket_name          = "slick-slides-public-storage-3835468"
+private_storage_bucket_name         = "slick-slides-private-storage-3835468"
+public_storage_bucket_name_staging  = "slick-slides-public-storage-staging-3835468"
+private_storage_bucket_name_staging = "slick-slides-private-storage-staging-3835468"

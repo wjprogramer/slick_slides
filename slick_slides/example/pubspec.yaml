@@ -17,6 +17,16 @@ dependencies:
   slick_slides:
     path: ../
 
+dependency_overrides:
+  slick_slides_client:
+    path: ../../slick_slides_client
+  serverpod_flutter: 
+    path: /Users/viktor/Projects/tests/serverpod/packages/serverpod_flutter 
+  serverpod_client: 
+    path: /Users/viktor/Projects/tests/serverpod/packages/serverpod_client 
+  serverpod_serialization: 
+    path: /Users/viktor/Projects/tests/serverpod/packages/serverpod_serialization
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

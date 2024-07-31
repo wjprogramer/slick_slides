@@ -4,9 +4,11 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:serverpod_flutter/serverpod_flutter.dart';
 import 'package:slick_slides/slick_slides.dart';
 import 'package:slick_slides/src/deck/deck_controls.dart';
 import 'package:slick_slides/src/deck/slide_config.dart';
+import 'package:slick_slides_client/slick_slides_client.dart';
 import 'package:syntax_highlight/syntax_highlight.dart';
 
 /// Builds the content of a slide, when there are more than one sub-slide.
@@ -148,6 +150,7 @@ class SlideDeck extends StatefulWidget {
     this.autoplay = false,
     this.autoplayDuration = const Duration(seconds: 5),
     this.presenterView = false,
+    this.connectToServerExperimental = false,
     super.key,
   });
 
@@ -168,6 +171,8 @@ class SlideDeck extends StatefulWidget {
 
   /// Show the deck in presenter mode, with presenter notes.
   final bool presenterView;
+
+  final bool connectToServerExperimental;
 
   @override
   State<SlideDeck> createState() => SlideDeckState();
@@ -243,6 +248,8 @@ class _SlideArguments {
 
 /// The state of a [SlideDeck].
 class SlideDeckState extends State<SlideDeck> {
+  Client? _client;
+
   var _loading = true;
 
   /// Returns true if the deck is currently loading.
@@ -276,6 +283,34 @@ class SlideDeckState extends State<SlideDeck> {
 
     if (widget.autoplay) {
       _startAutoplay();
+    }
+
+    if (!widget.autoplay && widget.connectToServerExperimental) {
+      _client = Client('http://$localhost:8080/')
+        ..connectivityMonitor = FlutterConnectivityMonitor();
+
+      _handleNetworkRemote();
+    }
+  }
+
+  Future<void> _handleNetworkRemote() async {
+    if (_client == null) {
+      return;
+    }
+
+    print('Listening for updates from remote');
+
+    await for (var action in _client!.deck.actions()) {
+      switch (action) {
+        case RemoteAction.next:
+          print('Got next');
+          _onNext();
+          break;
+        case RemoteAction.previous:
+          print('Got previous');
+          _onPrevious();
+          break;
+      }
     }
   }
 

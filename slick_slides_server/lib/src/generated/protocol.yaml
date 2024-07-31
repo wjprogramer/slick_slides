@@ -1,0 +1,6 @@
+deck:
+  - actions:
+remote:
+  - next:
+  - previous:
+  - deckUpdates:

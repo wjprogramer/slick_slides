@@ -1,0 +1,55 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "example (Windows Debug)",
+      "request": "launch",
+      "type": "dart",
+      "program": "example/lib/main.dart",
+      "cwd": "example",
+      "args": ["-d", "windows"]
+    },
+    {
+      "name": "example (Windows Profile)",
+      "request": "launch",
+      "type": "dart",
+      "program": "example/lib/main.dart",
+      "cwd": "example",
+      "flutterMode": "profile",
+      "args": ["-d", "windows"]
+    },
+    {
+      "name": "example (Windows Release)",
+      "request": "launch",
+      "type": "dart",
+      "program": "example/lib/main.dart",
+      "cwd": "example",
+      "flutterMode": "release",
+      "args": ["-d", "windows"]
+    },
+    {
+      "name": "example (Debug)",
+      "request": "launch",
+      "type": "dart",
+      "program": "example/lib/main.dart",
+      "cwd": "example"
+    },
+    {
+      "name": "example (Profile)",
+      "request": "launch",
+      "type": "dart",
+      "program": "example/lib/main.dart",
+      "cwd": "example",
+      "flutterMode": "profile"
+    },
+    {
+      "name": "example (Release)",
+      "request": "launch",
+      "type": "dart",
+      "program": "example/lib/main.dart",
+      "cwd": "example",
+      "flutterMode": "release"
+    }
+  ]
+}
+

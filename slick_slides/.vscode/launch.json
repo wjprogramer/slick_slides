@@ -6,7 +6,6 @@
       "request": "launch",
       "type": "dart",
       "program": "example/lib/main.dart",
-      "cwd": "example",
       "args": ["-d", "windows"]
     },
     {
@@ -14,7 +13,6 @@
       "request": "launch",
       "type": "dart",
       "program": "example/lib/main.dart",
-      "cwd": "example",
       "flutterMode": "profile",
       "args": ["-d", "windows"]
     },
@@ -23,7 +21,6 @@
       "request": "launch",
       "type": "dart",
       "program": "example/lib/main.dart",
-      "cwd": "example",
       "flutterMode": "release",
       "args": ["-d", "windows"]
     },
@@ -31,15 +28,13 @@
       "name": "example (Debug)",
       "request": "launch",
       "type": "dart",
-      "program": "example/lib/main.dart",
-      "cwd": "example"
+      "program": "example/lib/main.dart"
     },
     {
       "name": "example (Profile)",
       "request": "launch",
       "type": "dart",
       "program": "example/lib/main.dart",
-      "cwd": "example",
       "flutterMode": "profile"
     },
     {
@@ -47,7 +42,6 @@
       "request": "launch",
       "type": "dart",
       "program": "example/lib/main.dart",
-      "cwd": "example",
       "flutterMode": "release"
     }
   ]

@@ -15,6 +15,35 @@ typedef SubSlideWidgetBuilder = Widget Function(
   int index,
 );
 
+/// Controller for driving a [SlideDeck] from外部，提供簡單翻頁能力。
+class SlideDeckController {
+  SlideDeckState? _state;
+
+  void _attach(SlideDeckState state) {
+    _state = state;
+  }
+
+  void _detach(SlideDeckState state) {
+    if (identical(_state, state)) {
+      _state = null;
+    }
+  }
+
+  /// Go to next slide / sub-slide.
+  void next() {
+    final state = _state;
+    if (state == null || !state.mounted) return;
+    state._onNext();
+  }
+
+  /// Go to previous slide / sub-slide.
+  void previous() {
+    final state = _state;
+    if (state == null || !state.mounted) return;
+    state._onPrevious();
+  }
+}
+
 /// A class that initializes the `slick_slides` package, by loading required
 /// resources.
 class SlickSlides {
@@ -143,6 +172,7 @@ class SlideDeck extends StatefulWidget {
   /// of the slides, and is used to scale the slides to fit the screen.
   const SlideDeck({
     required this.slides,
+    this.controller,
     this.theme = const SlideThemeData.dark(),
     this.size = const Size(1920, 1080),
     this.autoplay = false,
@@ -153,6 +183,9 @@ class SlideDeck extends StatefulWidget {
 
   /// The slides in the deck.
   final List<Slide> slides;
+
+  /// 外部可注入的控制器，用於手動翻頁。
+  final SlideDeckController? controller;
 
   /// The default theme for the slides.
   final SlideThemeData theme;
@@ -269,6 +302,7 @@ class SlideDeckState extends State<SlideDeck> {
   void initState() {
     super.initState();
     _presenterView = widget.presenterView;
+    widget.controller?._attach(this);
 
     _focusNode.requestFocus();
 
@@ -340,6 +374,11 @@ class SlideDeckState extends State<SlideDeck> {
   @override
   void didUpdateWidget(SlideDeck oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?._detach(this);
+      widget.controller?._attach(this);
+    }
 
     if (widget.autoplay != oldWidget.autoplay) {
       if (widget.autoplay) {
@@ -437,6 +476,8 @@ class SlideDeckState extends State<SlideDeck> {
 
   @override
   void dispose() {
+    widget.controller?._detach(this);
+
     super.dispose();
     _focusNode.dispose();
     _controlsTimer?.cancel();

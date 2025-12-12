@@ -17,10 +17,26 @@ typedef SubSlideWidgetBuilder = Widget Function(
 
 /// Controller for driving a [SlideDeck] from外部，提供簡單翻頁能力。
 class SlideDeckController {
+  /// Creates a [SlideDeckController].
+  ///
+  /// If [controlsAlwaysVisible] is true, the deck controls will always be
+  /// visible regardless of mouse movement.
+  SlideDeckController({
+    this.controlsAlwaysVisible,
+  });
+
   SlideDeckState? _state;
+  
+  /// Whether the deck controls should always be visible.
+  final bool? controlsAlwaysVisible;
 
   void _attach(SlideDeckState state) {
     _state = state;
+    // 如果建構子有設定 controlsAlwaysVisible，自動更新 state 的值
+    // 在 attach 時直接設置狀態變數，避免在 initState 期間調用 setState
+    if (controlsAlwaysVisible != null) {
+      state._controlsAlwaysVisible = controlsAlwaysVisible!;
+    }
   }
 
   void _detach(SlideDeckState state) {
@@ -41,6 +57,18 @@ class SlideDeckController {
     final state = _state;
     if (state == null || !state.mounted) return;
     state._onPrevious();
+  }
+
+  /// Set whether the controls should always be visible.
+  void setControlsAlwaysVisible(bool alwaysVisible) {
+    final state = _state;
+    if (state == null) return;
+    // 如果不是 mounted，直接 assign 值，不觸發 setState
+    if (!state.mounted) {
+      state._controlsAlwaysVisible = alwaysVisible;
+      return;
+    }
+    state._setControlsAlwaysVisible(alwaysVisible);
   }
 }
 
@@ -178,6 +206,7 @@ class SlideDeck extends StatefulWidget {
     this.autoplay = false,
     this.autoplayDuration = const Duration(seconds: 5),
     this.presenterView = false,
+    this.controlActions,
     super.key,
   });
 
@@ -201,6 +230,9 @@ class SlideDeck extends StatefulWidget {
 
   /// Show the deck in presenter mode, with presenter notes.
   final bool presenterView;
+
+  /// Custom actions to display in the controls.
+  final List<Widget>? controlActions;
 
   @override
   State<SlideDeck> createState() => SlideDeckState();
@@ -290,6 +322,7 @@ class SlideDeckState extends State<SlideDeck> {
   Timer? _autoplayTimer;
   bool _mouseMovedRecently = false;
   bool _mouseInsideControls = false;
+  bool _controlsAlwaysVisible = false;
 
   late bool _presenterView;
 
@@ -556,6 +589,14 @@ class SlideDeckState extends State<SlideDeck> {
     });
   }
 
+  void _setControlsAlwaysVisible(bool alwaysVisible) {
+    if (_controlsAlwaysVisible != alwaysVisible) {
+      setState(() {
+        _controlsAlwaysVisible = alwaysVisible;
+      });
+    }
+  }
+
   void _onMouseMoved() {
     if (_controlsTimer != null) {
       _controlsTimer!.cancel();
@@ -627,10 +668,11 @@ class SlideDeckState extends State<SlideDeck> {
                   });
                 },
                 child: DeckControls(
-                  visible: _mouseMovedRecently || _mouseInsideControls,
+                  visible: _controlsAlwaysVisible || _mouseMovedRecently || _mouseInsideControls,
                   onPrevious: _onPrevious,
                   onNext: _onNext,
                   onTogglePresenterView: _onTogglePresenterView,
+                  actions: widget.controlActions,
                 ),
               ),
             ),
@@ -682,6 +724,7 @@ class SlideDeckState extends State<SlideDeck> {
                           onPrevious: _onPrevious,
                           onNext: _onNext,
                           onTogglePresenterView: _onTogglePresenterView,
+                          actions: widget.controlActions,
                         ),
                       ],
                     ),

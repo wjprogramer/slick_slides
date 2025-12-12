@@ -9,6 +9,7 @@ class DeckControls extends StatefulWidget {
     required this.onNext,
     required this.onTogglePresenterView,
     this.visible = true,
+    this.actions,
     super.key,
   });
 
@@ -23,6 +24,9 @@ class DeckControls extends StatefulWidget {
 
   /// Whether the controls are visible.
   final bool visible;
+
+  /// Custom actions to display in the controls.
+  final List<Widget>? actions;
 
   @override
   State<DeckControls> createState() => _DeckControlsState();
@@ -113,6 +117,10 @@ class _DeckControlsState extends State<DeckControls>
                 color: Colors.white,
               ),
             ),
+            if (widget.actions != null && widget.actions!.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              ...widget.actions!,
+            ],
           ],
         ),
       ),

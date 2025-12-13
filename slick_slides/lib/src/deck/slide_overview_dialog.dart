@@ -214,12 +214,14 @@ class _SlideThumbnail extends StatelessWidget {
             // with slide content in the overview
             IgnorePointer(
               ignoring: true,
-              child: FittedBox(
-                fit: BoxFit.contain,
-                child: SizedBox(
-                  width: size.width,
-                  height: size.height,
-                  child: slideContent,
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: SizedBox(
+                    width: size.width,
+                    height: size.height,
+                    child: slideContent,
+                  ),
                 ),
               ),
             ),

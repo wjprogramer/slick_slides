@@ -70,6 +70,48 @@ class SlideDeckController {
     }
     state._setControlsAlwaysVisible(alwaysVisible);
   }
+
+  /// Go to a specific slide by index.
+  void goToSlide(int slideIndex) {
+    final state = _state;
+    if (state == null || !state.mounted) return;
+    state._goToSlide(slideIndex);
+  }
+
+  /// Get the current slide index.
+  int? get currentSlideIndex {
+    final state = _state;
+    if (state == null || !state.mounted) return null;
+    return state._index.index;
+  }
+
+  /// Get the total number of slides.
+  int? get totalSlides {
+    final state = _state;
+    if (state == null || !state.mounted) return null;
+    return state.widget.slides.length;
+  }
+
+  /// Get the list of slides.
+  List<Slide>? get slides {
+    final state = _state;
+    if (state == null || !state.mounted) return null;
+    return state.widget.slides;
+  }
+
+  /// Get the theme of the deck.
+  SlideThemeData? get theme {
+    final state = _state;
+    if (state == null || !state.mounted) return null;
+    return state.widget.theme;
+  }
+
+  /// Get the size of the slides.
+  Size? get size {
+    final state = _state;
+    if (state == null || !state.mounted) return null;
+    return state.widget.size;
+  }
 }
 
 /// A class that initializes the `slick_slides` package, by loading required
@@ -184,6 +226,16 @@ class Slide {
   /// audio's duration will be used to determine how long to wait before
   /// advancing to the next slide unless [autoplayDuration] is specified.
   final Source? audioSource;
+
+  /// Builds the slide content for the given [context] and [subSlideIndex].
+  /// For slides without sub-slides, [subSlideIndex] should be 0.
+  Widget buildContent(BuildContext context, int subSlideIndex) {
+    if (hasSubSlides) {
+      return _subSlideBuilder!(context, subSlideIndex);
+    } else {
+      return _builder!(context);
+    }
+  }
 }
 
 /// A deck of slides. It takes a list of [Slide]s, and builds the content of the
@@ -576,6 +628,20 @@ class SlideDeckState extends State<SlideDeck> {
       const _SlideArguments(
         animateContents: false,
         animateTransition: false,
+      ),
+    );
+  }
+
+  void _goToSlide(int slideIndex) {
+    if (slideIndex < 0 || slideIndex >= widget.slides.length) {
+      return;
+    }
+    var newIndex = _SlideIndex(slideIndex, 0);
+    _onChangeSlide(
+      newIndex,
+      _SlideArguments(
+        animateContents: true,
+        animateTransition: _index.index != newIndex.index,
       ),
     );
   }

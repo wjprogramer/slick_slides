@@ -16,4 +16,6 @@ export 'src/widgets/bullets.dart';
 export 'src/widgets/colored_code.dart';
 export 'src/widgets/gradient_text.dart';
 export 'src/deck/deck.dart';
+export 'src/deck/deck_controls.dart';
+export 'src/deck/slide_overview_dialog.dart';
 export 'src/deck/theme.dart';

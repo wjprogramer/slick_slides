@@ -81,26 +81,23 @@ class SlickSlides {
   /// Initializes the `slick_slides` package, by loading required resources.
   /// Typically called in the `main()` function of the application, after
   /// `WidgetsFlutterBinding.ensureInitialized()` has been called.
-  static Future<void> initialize() async {
+  ///
+  /// [languages] is an optional list of languages to initialize. If not
+  /// provided, defaults to `['dart', 'yaml', 'serverpod_protocol']`.
+  static Future<void> initialize({
+    List<String> languages = const ['dart', 'yaml', 'serverpod_protocol'],
+  }) async {
     WidgetsFlutterBinding.ensureInitialized();
 
-    await Highlighter.initialize(['dart', 'yaml', 'serverpod_protocol']);
+    await Highlighter.initialize(languages);
     var theme = await HighlighterTheme.loadDarkTheme();
 
-    highlighters['dart'] = Highlighter(
-      language: 'dart',
-      theme: theme,
-    );
-
-    highlighters['yaml'] = Highlighter(
-      language: 'yaml',
-      theme: theme,
-    );
-
-    highlighters['serverpod_protocol'] = Highlighter(
-      language: 'serverpod_protocol',
-      theme: theme,
-    );
+    for (var language in languages) {
+      highlighters[language] = Highlighter(
+        language: language,
+        theme: theme,
+      );
+    }
   }
 }
 

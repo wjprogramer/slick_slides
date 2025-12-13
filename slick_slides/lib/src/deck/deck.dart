@@ -256,6 +256,7 @@ class SlideDeck extends StatefulWidget {
     this.autoplayDuration = const Duration(seconds: 5),
     this.presenterView = false,
     this.controlActions,
+    this.showPageNumber = false,
     super.key,
   });
 
@@ -282,6 +283,9 @@ class SlideDeck extends StatefulWidget {
 
   /// Custom actions to display in the controls.
   final List<Widget>? controlActions;
+
+  /// Whether to show page numbers on each slide (e.g., "1 / 10").
+  final bool showPageNumber;
 
   @override
   State<SlideDeck> createState() => SlideDeckState();
@@ -736,6 +740,28 @@ class SlideDeckState extends State<SlideDeck> {
                   onNext: _onNext,
                   onTogglePresenterView: _onTogglePresenterView,
                   actions: widget.controlActions,
+                ),
+              ),
+            ),
+          if (widget.showPageNumber && !_presenterView)
+            Positioned(
+              bottom: 16.0,
+              left: 16.0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${_index.index + 1}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
                 ),
               ),
             ),

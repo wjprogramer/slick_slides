@@ -131,6 +131,7 @@ class SlideOverviewDialog extends StatelessWidget {
                     return _SlideThumbnail(
                       slide: slides[index],
                       slideIndex: index,
+                      totalSlides: slides.length,
                       theme: theme,
                       size: size,
                       isCurrent: isCurrent,
@@ -154,6 +155,7 @@ class _SlideThumbnail extends StatelessWidget {
   const _SlideThumbnail({
     required this.slide,
     required this.slideIndex,
+    required this.totalSlides,
     required this.theme,
     required this.size,
     required this.isCurrent,
@@ -162,6 +164,7 @@ class _SlideThumbnail extends StatelessWidget {
 
   final Slide slide;
   final int slideIndex;
+  final int totalSlides;
   final SlideThemeData theme;
   final Size size;
   final bool isCurrent;
@@ -217,6 +220,29 @@ class _SlideThumbnail extends StatelessWidget {
                   width: size.width,
                   height: size.height,
                   child: slideContent,
+                ),
+              ),
+            ),
+            // Page number overlay (always shown)
+            Positioned(
+              bottom: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '${slideIndex + 1}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),

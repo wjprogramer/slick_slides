@@ -189,6 +189,7 @@ class _ColoredCodeState extends State<ColoredCode>
 
     var codeLines = animatedCode.split('\n');
     var numLines = codeLines.length;
+    final textStyle = widget.textStyle ?? theme.textTheme.code;
 
     var fadedColoredCode = Text.rich(
       highlightedText,
@@ -199,29 +200,51 @@ class _ColoredCodeState extends State<ColoredCode>
     }
 
     return DefaultTextStyle(
-      style: theme.textTheme.code,
-      child: Stack(
-        children: [
-          ClipPath(
-            clipper: _HighlightedLinesClipper(
-              numLines: numLines,
-              highlightedLines: widget.highlightedLines,
-              invert: false,
+      style: textStyle,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Calculate actual line height using TextPainter
+          // Measure a single line to get the line height
+          final textPainter = TextPainter(
+            text: TextSpan(
+              text: 'A',
+              style: textStyle,
             ),
-            child: coloredCode,
-          ),
-          Opacity(
-            opacity: _highlightController.value,
-            child: ClipPath(
-              clipper: _HighlightedLinesClipper(
-                numLines: numLines,
-                highlightedLines: widget.highlightedLines,
-                invert: true,
+            textDirection: TextDirection.ltr,
+            maxLines: 1,
+          );
+          textPainter.layout(maxWidth: constraints.maxWidth);
+          // Use the text height, accounting for line height multiplier
+          final baseLineHeight = textPainter.height;
+          final lineHeightMultiplier = textStyle.height ?? 1.0;
+          final actualLineHeight = baseLineHeight * lineHeightMultiplier;
+
+          return Stack(
+            children: [
+              ClipPath(
+                clipper: _HighlightedLinesClipper(
+                  numLines: numLines,
+                  highlightedLines: widget.highlightedLines,
+                  invert: false,
+                  lineHeight: actualLineHeight,
+                ),
+                child: coloredCode,
               ),
-              child: fadedColoredCode,
-            ),
-          ),
-        ],
+              Opacity(
+                opacity: _highlightController.value,
+                child: ClipPath(
+                  clipper: _HighlightedLinesClipper(
+                    numLines: numLines,
+                    highlightedLines: widget.highlightedLines,
+                    invert: true,
+                    lineHeight: actualLineHeight,
+                  ),
+                  child: fadedColoredCode,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -289,21 +312,24 @@ class _HighlightedLinesClipper extends CustomClipper<Path> {
     required this.numLines,
     required this.highlightedLines,
     required this.invert,
+    this.lineHeight,
   });
 
   final int numLines;
   final List<int> highlightedLines;
   final bool invert;
+  final double? lineHeight;
 
   @override
   Path getClip(Size size) {
     var path = Path();
-    var lineHeight = size.height / numLines;
+    // Use provided lineHeight if available, otherwise calculate from size
+    final actualLineHeight = lineHeight ?? (size.height / numLines);
     for (var i = 0; i < numLines; i++) {
       if (highlightedLines.contains(i) != invert) {
-        var y = i * lineHeight;
+        var y = i * actualLineHeight;
         path.addRect(
-          Rect.fromLTWH(0.0, y, size.width, lineHeight),
+          Rect.fromLTWH(0.0, y, size.width, actualLineHeight),
         );
       }
     }
@@ -312,6 +338,7 @@ class _HighlightedLinesClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(_HighlightedLinesClipper oldClipper) {
-    return oldClipper.highlightedLines != highlightedLines;
+    return oldClipper.highlightedLines != highlightedLines ||
+        oldClipper.lineHeight != lineHeight;
   }
 }

@@ -7,6 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:slick_slides/slick_slides.dart';
 import 'package:slick_slides/src/deck/deck_controls.dart';
 import 'package:slick_slides/src/deck/slide_config.dart';
+import 'package:slick_slides/src/deck/slide_drawing_canvas.dart';
+import 'package:slick_slides/src/deck/drawing_toolbar.dart';
+import 'package:slick_slides/src/deck/toolbar.dart';
 import 'package:syntax_highlight/syntax_highlight.dart';
 
 /// Builds the content of a slide, when there are more than one sub-slide.
@@ -26,7 +29,7 @@ class SlideDeckController {
   });
 
   SlideDeckState? _state;
-  
+
   /// Whether the deck controls should always be visible.
   final bool? controlsAlwaysVisible;
 
@@ -256,6 +259,7 @@ class SlideDeck extends StatefulWidget {
     this.autoplayDuration = const Duration(seconds: 5),
     this.presenterView = false,
     this.controlActions,
+    this.toolbarActions,
     this.showPageNumber = false,
     super.key,
   });
@@ -283,6 +287,9 @@ class SlideDeck extends StatefulWidget {
 
   /// Custom actions to display in the controls.
   final List<Widget>? controlActions;
+
+  /// Custom actions to display in the top-right toolbar.
+  final List<Widget>? toolbarActions;
 
   /// Whether to show page numbers on each slide (e.g., "1 / 10").
   final bool showPageNumber;
@@ -383,6 +390,17 @@ class SlideDeckState extends State<SlideDeck> {
 
   final _audioPlayers = <AudioPlayer?>[];
   final _audioDurations = <Duration?>[];
+
+  // Drawing state
+  bool _isDrawingEnabled = false;
+  bool _isEraserMode = false;
+  final Map<String, List<DrawingPath>> _drawings = {};
+  double _strokeWidth = 3.0;
+  Color _strokeColor = Colors.red;
+  final GlobalKey<State<SlideDrawingCanvas>> _drawingCanvasKey =
+      GlobalKey<State<SlideDrawingCanvas>>();
+  bool _canUndo = false;
+  bool _canRedo = false;
 
   @override
   void initState() {
@@ -585,6 +603,12 @@ class SlideDeckState extends State<SlideDeck> {
 
   void _onChangeSlide(_SlideIndex newIndex, _SlideArguments arguments) {
     if (_index != newIndex) {
+      // Save current slide's drawings
+      final currentState = _drawingCanvasKey.currentState;
+      if (currentState != null) {
+        _drawings['$_index'] = (currentState as dynamic).paths;
+      }
+
       // Precache the next and previous slides.
       _precacheSlide(newIndex.index - 1);
       _precacheSlide(newIndex.index + 1);
@@ -605,6 +629,15 @@ class SlideDeckState extends State<SlideDeck> {
           '$_index',
           arguments: arguments,
         );
+      });
+
+      // Restore drawings for the new slide
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final newState = _drawingCanvasKey.currentState;
+        if (newState != null) {
+          final savedPaths = _drawings['$newIndex'] ?? [];
+          (newState as dynamic).setPaths(savedPaths);
+        }
       });
     }
   }
@@ -653,6 +686,31 @@ class SlideDeckState extends State<SlideDeck> {
   void _onTogglePresenterView() {
     setState(() {
       _presenterView = !_presenterView;
+    });
+  }
+
+  void _onToggleDrawing() {
+    setState(() {
+      _isDrawingEnabled = !_isDrawingEnabled;
+      if (!_isDrawingEnabled) {
+        _isEraserMode = false;
+      }
+    });
+  }
+
+  void _onToggleEraser() {
+    setState(() {
+      _isEraserMode = !_isEraserMode;
+    });
+  }
+
+  void _onClearDrawing() {
+    final state = _drawingCanvasKey.currentState;
+    if (state != null) {
+      (state as dynamic).clear();
+    }
+    setState(() {
+      _drawings['$_index'] = [];
     });
   }
 
@@ -719,6 +777,94 @@ class SlideDeckState extends State<SlideDeck> {
               ),
             ),
           ),
+          // Drawing canvas overlay
+          if (!_presenterView)
+            Positioned.fill(
+              child: SlideDrawingCanvas(
+                key: _drawingCanvasKey,
+                isDrawingEnabled: _isDrawingEnabled,
+                initialPaths: _drawings['$_index'] ?? [],
+                strokeWidth: _strokeWidth,
+                strokeColor: _strokeColor,
+                isEraserMode: _isEraserMode,
+                onDrawingChanged: (paths) {
+                  setState(() {
+                    _drawings['$_index'] = List.from(paths);
+                  });
+                },
+                onStateChanged: (canUndo, canRedo) {
+                  setState(() {
+                    _canUndo = canUndo;
+                    _canRedo = canRedo;
+                  });
+                },
+              ),
+            ),
+          // Top-right toolbar
+          if (widget.toolbarActions != null &&
+              widget.toolbarActions!.isNotEmpty &&
+              !_presenterView)
+            Positioned(
+              top: 16.0,
+              right: 16.0,
+              child: Toolbar(
+                actions: widget.toolbarActions!,
+                visible: true,
+              ),
+            ),
+          // Drawing toolbar
+          if (_isDrawingEnabled && !_presenterView)
+            Positioned(
+              top: 16.0,
+              left: 16.0,
+              child: DrawingToolbar(
+                onUndo: () {
+                  final state = _drawingCanvasKey.currentState;
+                  if (state != null) {
+                    (state as dynamic).undo();
+                    // Update drawings map after undo
+                    setState(() {
+                      _drawings['$_index'] = (state as dynamic).paths;
+                    });
+                  }
+                },
+                onRedo: () {
+                  final state = _drawingCanvasKey.currentState;
+                  if (state != null) {
+                    (state as dynamic).redo();
+                    // Update drawings map after redo
+                    setState(() {
+                      _drawings['$_index'] = (state as dynamic).paths;
+                    });
+                  }
+                },
+                onClear: () {
+                  final state = _drawingCanvasKey.currentState;
+                  if (state != null) {
+                    (state as dynamic).clear();
+                  }
+                  setState(() {
+                    _drawings['$_index'] = [];
+                  });
+                },
+                onStrokeWidthChanged: (width) {
+                  setState(() {
+                    _strokeWidth = width;
+                  });
+                },
+                strokeWidth: _strokeWidth,
+                strokeColor: _strokeColor,
+                onStrokeColorChanged: (color) {
+                  setState(() {
+                    _strokeColor = color;
+                  });
+                },
+                canUndo: _canUndo,
+                canRedo: _canRedo,
+                isEraserMode: _isEraserMode,
+                onToggleEraser: _onToggleEraser,
+              ),
+            ),
           if (!widget.autoplay && !_presenterView)
             Positioned(
               bottom: 16.0,
@@ -735,11 +881,23 @@ class SlideDeckState extends State<SlideDeck> {
                   });
                 },
                 child: DeckControls(
-                  visible: _controlsAlwaysVisible || _mouseMovedRecently || _mouseInsideControls,
+                  visible: _controlsAlwaysVisible ||
+                      _mouseMovedRecently ||
+                      _mouseInsideControls,
                   onPrevious: _onPrevious,
                   onNext: _onNext,
                   onTogglePresenterView: _onTogglePresenterView,
-                  actions: widget.controlActions,
+                  actions: [
+                    DrawingToggleButton(
+                      isDrawingEnabled: _isDrawingEnabled,
+                      onToggle: _onToggleDrawing,
+                      onClear: _onClearDrawing,
+                    ),
+                    if (widget.controlActions != null) ...[
+                      const SizedBox(width: 8),
+                      ...widget.controlActions!
+                    ],
+                  ],
                 ),
               ),
             ),

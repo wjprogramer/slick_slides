@@ -304,7 +304,17 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
   }
 
   Future<void> _rerasterizeAllPaths() async {
-    if (_canvasSize == null || _paths.isEmpty) return;
+    if (_canvasSize == null) return;
+    
+    // If paths are empty, clear the rasterized image
+    if (_paths.isEmpty) {
+      setState(() {
+        _rasterizedImage?.dispose();
+        _rasterizedImage = null;
+        _rasterizedPathCount = 0;
+      });
+      return;
+    }
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
@@ -479,6 +489,9 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
       _currentPath = null;
       // Reset rasterized count to match the restored paths
       _rasterizedPathCount = restoredPaths.length;
+      // Clear rasterized image so it gets rebuilt
+      _rasterizedImage?.dispose();
+      _rasterizedImage = null;
     });
 
     // Re-rasterize all paths after undo
@@ -520,6 +533,9 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
       _currentPath = null;
       // Reset rasterized count to match the restored paths
       _rasterizedPathCount = restoredPaths.length;
+      // Clear rasterized image so it gets rebuilt
+      _rasterizedImage?.dispose();
+      _rasterizedImage = null;
     });
 
     // Re-rasterize all paths after redo

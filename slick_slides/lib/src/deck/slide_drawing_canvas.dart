@@ -256,11 +256,7 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
         canvas.drawCircle(
             lastPath.points[0], lastPath.strokeWidth / 2, eraserPaint);
       } else {
-        final uiPath = Path();
-        uiPath.moveTo(lastPath.points[0].dx, lastPath.points[0].dy);
-        for (var i = 1; i < lastPath.points.length; i++) {
-          uiPath.lineTo(lastPath.points[i].dx, lastPath.points[i].dy);
-        }
+        final uiPath = _createSmoothPath(lastPath.points);
         canvas.drawPath(uiPath, eraserPaint);
       }
     } else {
@@ -279,11 +275,7 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
         canvas.drawCircle(
             lastPath.points[0], lastPath.strokeWidth / 2, pointPaint);
       } else {
-        final uiPath = Path();
-        uiPath.moveTo(lastPath.points[0].dx, lastPath.points[0].dy);
-        for (var i = 1; i < lastPath.points.length; i++) {
-          uiPath.lineTo(lastPath.points[i].dx, lastPath.points[i].dy);
-        }
+        final uiPath = _createSmoothPath(lastPath.points);
         canvas.drawPath(uiPath, paint);
       }
     }
@@ -335,11 +327,7 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
           eraserPaint.style = PaintingStyle.fill;
           canvas.drawCircle(path.points[0], path.strokeWidth / 2, eraserPaint);
         } else {
-          final uiPath = Path();
-          uiPath.moveTo(path.points[0].dx, path.points[0].dy);
-          for (var i = 1; i < path.points.length; i++) {
-            uiPath.lineTo(path.points[i].dx, path.points[i].dy);
-          }
+          final uiPath = _createSmoothPath(path.points);
           canvas.drawPath(uiPath, eraserPaint);
         }
       } else {
@@ -357,11 +345,7 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
             ..style = PaintingStyle.fill;
           canvas.drawCircle(path.points[0], path.strokeWidth / 2, pointPaint);
         } else {
-          final uiPath = Path();
-          uiPath.moveTo(path.points[0].dx, path.points[0].dy);
-          for (var i = 1; i < path.points.length; i++) {
-            uiPath.lineTo(path.points[i].dx, path.points[i].dy);
-          }
+          final uiPath = _createSmoothPath(path.points);
           canvas.drawPath(uiPath, paint);
         }
       }
@@ -378,6 +362,46 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
       _rasterizedImage?.dispose();
       _rasterizedImage = image;
     });
+  }
+
+  /// Creates a smooth path from points using Catmull-Rom spline interpolation.
+  /// This creates very smooth curves even with rapid drawing.
+  Path _createSmoothPath(List<Offset> points) {
+    if (points.isEmpty) return Path();
+    if (points.length == 1) {
+      final path = Path();
+      path.moveTo(points[0].dx, points[0].dy);
+      return path;
+    }
+    if (points.length == 2) {
+      final path = Path();
+      path.moveTo(points[0].dx, points[0].dy);
+      path.lineTo(points[1].dx, points[1].dy);
+      return path;
+    }
+
+    final path = Path();
+    path.moveTo(points[0].dx, points[0].dy);
+
+    // Use Catmull-Rom spline to cubic Bezier conversion
+    // This creates very smooth curves that pass through all points
+    for (var i = 0; i < points.length - 1; i++) {
+      final p0 = i > 0 ? points[i - 1] : points[i];
+      final p1 = points[i];
+      final p2 = points[i + 1];
+      final p3 = i < points.length - 2 ? points[i + 2] : p2;
+
+      // Convert Catmull-Rom to cubic Bezier
+      // Catmull-Rom with tension = 0.5 (centripetal parameterization)
+      final cp1x = p1.dx + (p2.dx - p0.dx) / 6;
+      final cp1y = p1.dy + (p2.dy - p0.dy) / 6;
+      final cp2x = p2.dx - (p3.dx - p1.dx) / 6;
+      final cp2y = p2.dy - (p3.dy - p1.dy) / 6;
+
+      path.cubicTo(cp1x, cp1y, cp2x, cp2y, p2.dx, p2.dy);
+    }
+
+    return path;
   }
 
   void _saveState() {
@@ -570,6 +594,46 @@ class _DrawingPainter extends CustomPainter {
   final List<DrawingPath> paths;
   final bool isEraserMode;
 
+  /// Creates a smooth path from points using Catmull-Rom spline interpolation.
+  /// This creates very smooth curves even with rapid drawing.
+  Path _createSmoothPath(List<Offset> points) {
+    if (points.isEmpty) return Path();
+    if (points.length == 1) {
+      final path = Path();
+      path.moveTo(points[0].dx, points[0].dy);
+      return path;
+    }
+    if (points.length == 2) {
+      final path = Path();
+      path.moveTo(points[0].dx, points[0].dy);
+      path.lineTo(points[1].dx, points[1].dy);
+      return path;
+    }
+
+    final path = Path();
+    path.moveTo(points[0].dx, points[0].dy);
+
+    // Use Catmull-Rom spline to cubic Bezier conversion
+    // This creates very smooth curves that pass through all points
+    for (var i = 0; i < points.length - 1; i++) {
+      final p0 = i > 0 ? points[i - 1] : points[i];
+      final p1 = points[i];
+      final p2 = points[i + 1];
+      final p3 = i < points.length - 2 ? points[i + 2] : p2;
+
+      // Convert Catmull-Rom to cubic Bezier
+      // Catmull-Rom with tension = 0.5 (centripetal parameterization)
+      final cp1x = p1.dx + (p2.dx - p0.dx) / 6;
+      final cp1y = p1.dy + (p2.dy - p0.dy) / 6;
+      final cp2x = p2.dx - (p3.dx - p1.dx) / 6;
+      final cp2y = p2.dy - (p3.dy - p1.dy) / 6;
+
+      path.cubicTo(cp1x, cp1y, cp2x, cp2y, p2.dx, p2.dy);
+    }
+
+    return path;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     for (var path in paths) {
@@ -607,12 +671,8 @@ class _DrawingPainter extends CustomPainter {
           canvas.drawCircle(path.points[0], path.strokeWidth / 2, pointPaint);
         }
       } else {
-        // Draw a path connecting all points
-        final uiPath = Path();
-        uiPath.moveTo(path.points[0].dx, path.points[0].dy);
-        for (var i = 1; i < path.points.length; i++) {
-          uiPath.lineTo(path.points[i].dx, path.points[i].dy);
-        }
+        // Draw a path connecting all points with smooth curves
+        final uiPath = _createSmoothPath(path.points);
         canvas.drawPath(uiPath, paint);
       }
     }

@@ -13,6 +13,7 @@ class SlideDrawingCanvas extends StatefulWidget {
     this.strokeColor = Colors.red,
     this.onStateChanged,
     this.isEraserMode = false,
+    this.eraserStrokeWidth = 30.0,
     super.key,
   });
 
@@ -36,6 +37,9 @@ class SlideDrawingCanvas extends StatefulWidget {
 
   /// Whether eraser mode is enabled.
   final bool isEraserMode;
+
+  /// The width of the eraser stroke.
+  final double eraserStrokeWidth;
 
   @override
   State<SlideDrawingCanvas> createState() => _SlideDrawingCanvasState();
@@ -185,7 +189,7 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
       _currentPath = DrawingPath(
         points: [details.localPosition],
         color: widget.isEraserMode ? Colors.transparent : widget.strokeColor,
-        strokeWidth: widget.strokeWidth,
+        strokeWidth: widget.isEraserMode ? widget.eraserStrokeWidth : widget.strokeWidth,
         isEraser: widget.isEraserMode,
       );
       _paths.add(_currentPath!);

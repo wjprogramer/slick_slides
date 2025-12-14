@@ -15,6 +15,8 @@ class DrawingToolbar extends StatelessWidget {
     this.onStrokeColorChanged,
     this.isEraserMode = false,
     this.onToggleEraser,
+    this.eraserStrokeWidth = 30.0,
+    this.onEraserStrokeWidthChanged,
     super.key,
   });
 
@@ -50,6 +52,12 @@ class DrawingToolbar extends StatelessWidget {
 
   /// Called when eraser mode is toggled.
   final VoidCallback? onToggleEraser;
+
+  /// Current eraser stroke width.
+  final double eraserStrokeWidth;
+
+  /// Called when eraser stroke width is changed.
+  final void Function(double width)? onEraserStrokeWidthChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -112,39 +120,63 @@ class DrawingToolbar extends StatelessWidget {
               endIndent: 4,
             ),
           if (onToggleEraser != null) const SizedBox(width: 8),
-          // Stroke width slider
-          Material(
-            type: MaterialType.transparency,
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.brush,
-                  size: 16,
-                  color: Colors.white,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${strokeWidth.toInt()}px',
-                  style: const TextStyle(
+          // Stroke width slider (different for pen and eraser)
+          if (isEraserMode && onEraserStrokeWidthChanged != null)
+            Material(
+              type: MaterialType.transparency,
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.auto_fix_high,
+                    size: 16,
                     color: Colors.white,
-                    fontSize: 12,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Text(
+                    '${eraserStrokeWidth.toInt()}px',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Material(
+              type: MaterialType.transparency,
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.brush,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${strokeWidth.toInt()}px',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
           Material(
             type: MaterialType.transparency,
             child: SizedBox(
               width: 120,
               child: Slider(
-                value: strokeWidth,
-                min: 1.0,
-                max: 20.0,
-                divisions: 19,
+                value: isEraserMode ? eraserStrokeWidth : strokeWidth,
+                min: isEraserMode ? 1.0 : 1.0,
+                max: isEraserMode ? 100.0 : 20.0,
+                divisions: isEraserMode ? 99 : 19,
                 activeColor: Colors.white,
                 inactiveColor: Colors.white24,
-                onChanged: onStrokeWidthChanged,
+                onChanged: isEraserMode && onEraserStrokeWidthChanged != null
+                    ? onEraserStrokeWidthChanged!
+                    : onStrokeWidthChanged,
               ),
             ),
           ),

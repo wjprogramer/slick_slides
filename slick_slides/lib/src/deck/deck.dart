@@ -396,6 +396,7 @@ class SlideDeckState extends State<SlideDeck> {
   bool _isEraserMode = false;
   final Map<String, List<DrawingPath>> _drawings = {};
   double _strokeWidth = 3.0;
+  double _eraserStrokeWidth = 30.0;
   Color _strokeColor = Colors.red;
   final GlobalKey<State<SlideDrawingCanvas>> _drawingCanvasKey =
       GlobalKey<State<SlideDrawingCanvas>>();
@@ -787,6 +788,7 @@ class SlideDeckState extends State<SlideDeck> {
                 strokeWidth: _strokeWidth,
                 strokeColor: _strokeColor,
                 isEraserMode: _isEraserMode,
+                eraserStrokeWidth: _eraserStrokeWidth,
                 onDrawingChanged: (paths) {
                   setState(() {
                     _drawings['$_index'] = List.from(paths);
@@ -861,6 +863,12 @@ class SlideDeckState extends State<SlideDeck> {
                           });
                         },
                         strokeWidth: _strokeWidth,
+                        eraserStrokeWidth: _eraserStrokeWidth,
+                        onEraserStrokeWidthChanged: (width) {
+                          setState(() {
+                            _eraserStrokeWidth = width;
+                          });
+                        },
                         strokeColor: _strokeColor,
                         onStrokeColorChanged: (color) {
                           setState(() {

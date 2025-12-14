@@ -212,7 +212,7 @@ class _ColoredCodeState extends State<ColoredCode>
       
       // Now split the highlighted text by lines while preserving the TextSpan structure
       final lineNumberStyle = textStyle.copyWith(
-        color: textStyle.color?.withOpacity(0.5),
+        color: (textStyle.color ?? Colors.white).withOpacity(0.3),
       );
       
       // Extract TextSpans for each line from the full highlighted text
@@ -515,29 +515,29 @@ class _ColoredCodeState extends State<ColoredCode>
         final actualLineHeight = baseLineHeight * lineHeightMultiplier;
 
         return Stack(
-          children: [
-            ClipPath(
+        children: [
+          ClipPath(
+            clipper: _HighlightedLinesClipper(
+              numLines: numLines,
+              highlightedLines: widget.highlightedLines,
+              invert: false,
+                lineHeight: actualLineHeight,
+            ),
+            child: coloredCode,
+          ),
+          Opacity(
+            opacity: _highlightController.value,
+            child: ClipPath(
               clipper: _HighlightedLinesClipper(
                 numLines: numLines,
                 highlightedLines: widget.highlightedLines,
-                invert: false,
-                lineHeight: actualLineHeight,
-              ),
-              child: coloredCode,
-            ),
-            Opacity(
-              opacity: _highlightController.value,
-              child: ClipPath(
-                clipper: _HighlightedLinesClipper(
-                  numLines: numLines,
-                  highlightedLines: widget.highlightedLines,
-                  invert: true,
+                invert: true,
                   lineHeight: actualLineHeight,
-                ),
-                child: fadedColoredCode,
               ),
+              child: fadedColoredCode,
             ),
-          ],
+          ),
+        ],
         );
       },
     );

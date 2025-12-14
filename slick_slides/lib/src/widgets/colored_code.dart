@@ -22,6 +22,7 @@ class ColoredCode extends StatefulWidget {
     this.maxAnimationDuration = const Duration(milliseconds: 2000),
     this.keystrokeDuration = const Duration(milliseconds: 50),
     this.animateHighlightedLines = false,
+    this.showLineNumbers = false,
     super.key,
   });
 
@@ -52,6 +53,9 @@ class ColoredCode extends StatefulWidget {
 
   /// Whether to animate the highlighted lines. Defaults to false.
   final bool animateHighlightedLines;
+
+  /// Whether to show line numbers. Defaults to false.
+  final bool showLineNumbers;
 
   @override
   State<ColoredCode> createState() => _ColoredCodeState();
@@ -180,6 +184,94 @@ class _ColoredCodeState extends State<ColoredCode>
       highlightedText,
     );
 
+    // If line numbers are enabled, embed line numbers in the code text
+    if (widget.showLineNumbers) {
+      var codeLines = animatedCode.split('\n');
+      var numLines = codeLines.length;
+      final textStyle = widget.textStyle ?? theme.textTheme.code;
+      
+      // Calculate padding needed for line numbers (right-aligned)
+      final maxLineNumberText = numLines.toString();
+      final maxLineNumberLength = maxLineNumberText.length;
+      
+      // Calculate the width needed for line numbers
+      final lineNumberTextPainter = TextPainter(
+        text: TextSpan(
+          text: maxLineNumberText,
+          style: textStyle,
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      );
+      lineNumberTextPainter.layout();
+      final lineNumberWidth = lineNumberTextPainter.width + 24.0; // Add spacing
+      
+      // Highlight the FULL code first to preserve syntax context (especially for brackets)
+      final fullHighlightedText = highlightedText;
+      
+      // Now split the highlighted text by lines while preserving the TextSpan structure
+      final lineNumberStyle = textStyle.copyWith(
+        color: textStyle.color?.withOpacity(0.5),
+      );
+      
+      // Extract TextSpans for each line from the full highlighted text
+      final children = <TextSpan>[];
+      int currentPos = 0;
+      
+      for (var i = 0; i < codeLines.length; i++) {
+        final lineNumber = (i + 1).toString();
+        final padding = ' ' * (maxLineNumberLength - lineNumber.length);
+        final lineLength = codeLines[i].length;
+        
+        // Add line number (not highlighted)
+        children.add(TextSpan(
+          text: '$padding$lineNumber ',
+          style: lineNumberStyle,
+        ));
+        
+        // Extract the highlighted TextSpan for this line from the full highlighted text
+        final lineHighlighted = _extractLineFromHighlightedText(
+          fullHighlightedText,
+          currentPos,
+          lineLength,
+        );
+        children.add(lineHighlighted);
+        
+        // Add newline (except for last line)
+        if (i < codeLines.length - 1) {
+          children.add(const TextSpan(text: '\n'));
+        }
+        
+        currentPos += lineLength + 1; // +1 for the newline character
+      }
+      
+      final codeWithLineNumbersSpan = TextSpan(children: children);
+      
+      var coloredCodeWithNumbers = Text.rich(
+        codeWithLineNumbersSpan,
+        textAlign: TextAlign.left,
+      );
+
+      if (widget.highlightedLines.isEmpty) {
+        return DefaultTextStyle(
+          style: textStyle,
+          child: coloredCodeWithNumbers,
+        );
+      }
+
+      // For highlighted lines, rebuild with proper structure
+      return _buildHighlightedCodeWithEmbeddedLineNumbers(
+        codeWithLineNumbersSpan,
+        codeLines,
+        animatedCode,
+        numLines,
+        textStyle,
+        lineNumberStyle,
+        maxLineNumberLength,
+        lineNumberWidth,
+      );
+    }
+
     if (widget.highlightedLines.isEmpty) {
       return DefaultTextStyle(
         style: widget.textStyle ?? theme.textTheme.code,
@@ -187,13 +279,122 @@ class _ColoredCodeState extends State<ColoredCode>
       );
     }
 
-    var codeLines = animatedCode.split('\n');
-    var numLines = codeLines.length;
-    final textStyle = widget.textStyle ?? theme.textTheme.code;
-
-    var fadedColoredCode = Text.rich(
+    return _buildHighlightedCode(
+      coloredCode,
       highlightedText,
+      animatedCode.split('\n'),
+      animatedCode.split('\n').length,
+      widget.textStyle ?? theme.textTheme.code,
     );
+  }
+
+  TextSpan _extractLineFromHighlightedText(
+    TextSpan highlightedText,
+    int startPos,
+    int length,
+  ) {
+    // Recursively extract the TextSpan for a specific line
+    final result = <TextSpan>[];
+    int currentPos = 0;
+    final targetEnd = startPos + length;
+    
+    void extractFromSpan(TextSpan span) {
+      if (span.text != null) {
+        final spanStart = currentPos;
+        final spanEnd = currentPos + span.text!.length;
+        
+        // Check if this span overlaps with the target line
+        if (spanEnd > startPos && spanStart < targetEnd) {
+          // Calculate the start position relative to this span
+          final extractStart = (spanStart < startPos) ? startPos - spanStart : 0;
+          // Calculate the end position relative to this span
+          final extractEnd = (spanEnd > targetEnd)
+              ? targetEnd - spanStart
+              : span.text!.length;
+          
+          // Ensure extractEnd is within bounds
+          final safeExtractEnd = extractEnd.clamp(0, span.text!.length);
+          final safeExtractStart = extractStart.clamp(0, safeExtractEnd);
+          
+          if (safeExtractStart < safeExtractEnd) {
+            result.add(TextSpan(
+              text: span.text!.substring(safeExtractStart, safeExtractEnd),
+              style: span.style,
+              children: span.children,
+            ));
+          }
+        }
+        
+        currentPos = spanEnd;
+      } else if (span.children != null) {
+        for (final child in span.children!) {
+          extractFromSpan(child as TextSpan);
+        }
+      }
+    }
+    
+    extractFromSpan(highlightedText);
+    
+    if (result.length == 1) {
+      return result[0];
+    } else if (result.isEmpty) {
+      // Fallback: return plain text with highlighting
+      final plainText = highlightedText.toPlainText();
+      final safeStart = startPos.clamp(0, plainText.length);
+      final safeEnd = (startPos + length).clamp(safeStart, plainText.length);
+      return TextSpan(
+        text: plainText.substring(safeStart, safeEnd),
+      );
+    } else {
+      return TextSpan(children: result);
+    }
+  }
+
+  Widget _buildHighlightedCodeWithEmbeddedLineNumbers(
+    TextSpan codeWithLineNumbersSpan,
+    List<String> codeLines,
+    String animatedCode,
+    int numLines,
+    TextStyle textStyle,
+    TextStyle lineNumberStyle,
+    int maxLineNumberLength,
+    double lineNumberWidth,
+  ) {
+    // Get the full highlighted text to extract lines properly
+    final fullHighlightedText = SlickSlides.highlighters[widget.language]!.highlight(
+      animatedCode,
+    );
+    
+    // Build faded version (for highlighted lines animation)
+    final fadedChildren = <TextSpan>[];
+    int currentPos = 0;
+    
+    for (var i = 0; i < codeLines.length; i++) {
+      final lineNumber = (i + 1).toString();
+      final padding = ' ' * (maxLineNumberLength - lineNumber.length);
+      final lineLength = codeLines[i].length;
+      
+      // Add line number (not highlighted, always visible)
+      fadedChildren.add(TextSpan(
+        text: '$padding$lineNumber ',
+        style: lineNumberStyle,
+      ));
+      
+      // Extract the highlighted TextSpan for this line
+      final lineHighlighted = _extractLineFromHighlightedText(
+        fullHighlightedText,
+        currentPos,
+        lineLength,
+      );
+      fadedChildren.add(lineHighlighted);
+      
+      if (i < codeLines.length - 1) {
+        fadedChildren.add(const TextSpan(text: '\n'));
+      }
+      
+      currentPos += lineLength + 1; // +1 for the newline character
+    }
+    final fadedCodeWithLineNumbersSpan = TextSpan(children: fadedChildren);
 
     if (!_animateIn || !widget.animateHighlightedLines) {
       _highlightController.value = _dimmedCodeOpacity;
@@ -204,7 +405,6 @@ class _ColoredCodeState extends State<ColoredCode>
       child: LayoutBuilder(
         builder: (context, constraints) {
           // Calculate actual line height using TextPainter
-          // Measure a single line to get the line height
           final textPainter = TextPainter(
             text: TextSpan(
               text: 'A',
@@ -214,13 +414,37 @@ class _ColoredCodeState extends State<ColoredCode>
             maxLines: 1,
           );
           textPainter.layout(maxWidth: constraints.maxWidth);
-          // Use the text height, accounting for line height multiplier
           final baseLineHeight = textPainter.height;
           final lineHeightMultiplier = textStyle.height ?? 1.0;
           final actualLineHeight = baseLineHeight * lineHeightMultiplier;
 
+          // Build TextSpan with line numbers, applying highlight logic
+          final finalChildren = <TextSpan>[];
+          for (var i = 0; i < codeLines.length; i++) {
+            final lineNumber = (i + 1).toString();
+            final padding = ' ' * (maxLineNumberLength - lineNumber.length);
+            
+            // Add line number (always visible, not affected by highlight)
+            finalChildren.add(TextSpan(
+              text: '$padding$lineNumber ',
+              style: lineNumberStyle,
+            ));
+            
+            // Add code - we'll handle highlighting in the Stack below
+            final lineHighlighted = SlickSlides.highlighters[widget.language]!.highlight(
+              codeLines[i],
+            );
+            finalChildren.add(lineHighlighted);
+            
+            if (i < codeLines.length - 1) {
+              finalChildren.add(const TextSpan(text: '\n'));
+            }
+          }
+          final finalCodeSpan = TextSpan(children: finalChildren);
+
           return Stack(
             children: [
+              // Base code (dimmed if highlighted)
               ClipPath(
                 clipper: _HighlightedLinesClipper(
                   numLines: numLines,
@@ -228,8 +452,12 @@ class _ColoredCodeState extends State<ColoredCode>
                   invert: false,
                   lineHeight: actualLineHeight,
                 ),
-                child: coloredCode,
+                child: Text.rich(
+                  codeWithLineNumbersSpan,
+                  textAlign: TextAlign.left,
+                ),
               ),
+              // Highlighted code (only for highlighted lines)
               Opacity(
                 opacity: _highlightController.value,
                 child: ClipPath(
@@ -239,13 +467,78 @@ class _ColoredCodeState extends State<ColoredCode>
                     invert: true,
                     lineHeight: actualLineHeight,
                   ),
-                  child: fadedColoredCode,
+                  child: Text.rich(
+                    fadedCodeWithLineNumbersSpan,
+                    textAlign: TextAlign.left,
+                  ),
                 ),
               ),
             ],
           );
         },
       ),
+    );
+  }
+
+  Widget _buildHighlightedCode(
+    Widget coloredCode,
+    TextSpan highlightedText,
+    List<String> codeLines,
+    int numLines,
+    TextStyle textStyle,
+  ) {
+    var fadedColoredCode = Text.rich(
+      highlightedText,
+    );
+
+    if (!_animateIn || !widget.animateHighlightedLines) {
+      _highlightController.value = _dimmedCodeOpacity;
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate actual line height using TextPainter
+        // Measure a single line to get the line height
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: 'A',
+            style: textStyle,
+          ),
+          textDirection: TextDirection.ltr,
+          maxLines: 1,
+        );
+        textPainter.layout(maxWidth: constraints.maxWidth);
+        // Use the text height, accounting for line height multiplier
+        final baseLineHeight = textPainter.height;
+        final lineHeightMultiplier = textStyle.height ?? 1.0;
+        final actualLineHeight = baseLineHeight * lineHeightMultiplier;
+
+        return Stack(
+          children: [
+            ClipPath(
+              clipper: _HighlightedLinesClipper(
+                numLines: numLines,
+                highlightedLines: widget.highlightedLines,
+                invert: false,
+                lineHeight: actualLineHeight,
+              ),
+              child: coloredCode,
+            ),
+            Opacity(
+              opacity: _highlightController.value,
+              child: ClipPath(
+                clipper: _HighlightedLinesClipper(
+                  numLines: numLines,
+                  highlightedLines: widget.highlightedLines,
+                  invert: true,
+                  lineHeight: actualLineHeight,
+                ),
+                child: fadedColoredCode,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

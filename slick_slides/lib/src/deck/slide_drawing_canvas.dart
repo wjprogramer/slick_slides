@@ -96,6 +96,10 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
             _notifyStateChanged();
+            // If there are paths, rerasterize them all
+            if (_paths.isNotEmpty) {
+              _rerasterizeAllPaths();
+            }
           }
         });
       }
@@ -296,7 +300,7 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
   }
 
   Future<void> _rerasterizeAllPaths() async {
-    if (_canvasSize == null) return;
+    if (_canvasSize == null || _paths.isEmpty) return;
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
@@ -308,8 +312,9 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
 
     // Note: We don't need to draw existing rasterized image here because
     // _rerasterizeAllPaths is called to rebuild everything from scratch
-    // Draw all paths from scratch (up to _rasterizedPathCount)
-    for (var i = 0; i < _rasterizedPathCount && i < _paths.length; i++) {
+    // Draw all paths from scratch (up to _rasterizedPathCount, or all if count is 0)
+    final pathCount = _rasterizedPathCount > 0 ? _rasterizedPathCount : _paths.length;
+    for (var i = 0; i < pathCount && i < _paths.length; i++) {
       final path = _paths[i];
       if (path.points.isEmpty) continue;
 
@@ -361,6 +366,10 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
     setState(() {
       _rasterizedImage?.dispose();
       _rasterizedImage = image;
+      // Update rasterized path count to match what we just rasterized
+      if (_rasterizedPathCount == 0) {
+        _rasterizedPathCount = pathCount;
+      }
     });
   }
 
@@ -645,8 +654,11 @@ class _DrawingPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round;
 
-      if (path.isEraser || isEraserMode) {
-        // Eraser mode: show as semi-transparent red circle for visual feedback
+      // Only use isEraserMode for paths that are currently being drawn
+      // Existing paths should be displayed based on their own isEraser property
+      // isEraserMode is only used to show preview for the current drawing path
+      if (path.isEraser) {
+        // Eraser path: show as semi-transparent red for visual feedback
         // Actual erasing happens during rasterization
         paint.color = Colors.red.withOpacity(0.3);
         paint.style = PaintingStyle.stroke;
@@ -658,7 +670,7 @@ class _DrawingPainter extends CustomPainter {
       if (path.points.length == 1) {
         // 避免發生：down 下去會是一個很大的圓圈，但移動之後就會變小
         // Draw a single point as a filled circle
-        if (path.isEraser || isEraserMode) {
+        if (path.isEraser) {
           // Show eraser as semi-transparent circle
           final eraserPaint = Paint()
             ..color = Colors.red.withOpacity(0.3)

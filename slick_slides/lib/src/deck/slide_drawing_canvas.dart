@@ -55,6 +55,11 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
   Size? _canvasSize;
   int _rasterizedPathCount = 0; // Number of paths that have been rasterized
   double _devicePixelRatio = 1.0;
+  
+  // For velocity calculation
+  Offset? _lastPosition;
+  DateTime? _lastTime;
+  static const _velocitySmoothingFactor = 0.7; // Smooth velocity changes
 
   @override
   void initState() {
@@ -141,10 +146,11 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
       return const SizedBox.shrink();
     }
 
-    return GestureDetector(
-      onPanStart: _onPanStart,
-      onPanUpdate: _onPanUpdate,
-      onPanEnd: _onPanEnd,
+    return Listener(
+      onPointerDown: _onPointerDown,
+      onPointerMove: _onPointerMove,
+      onPointerUp: _onPointerUp,
+      onPointerCancel: _onPointerCancel,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final size = Size(constraints.maxWidth, constraints.maxHeight);
@@ -182,12 +188,31 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
     );
   }
 
-  void _onPanStart(DragStartDetails details) {
+  void _onPointerDown(PointerDownEvent event) {
     if (!widget.isDrawingEnabled) return;
+
+    final localPosition = event.localPosition;
+    final pressure = event.pressure.clamp(0.0, 1.0);
+    // Note: Flutter's PointerEvent doesn't have tiltX/tiltY yet
+    // These would need to be obtained via platform channels
+    final tiltX = 0.0;
+    final tiltY = 0.0;
+
+    _lastPosition = localPosition;
+    _lastTime = DateTime.now();
 
     setState(() {
       _currentPath = DrawingPath(
-        points: [details.localPosition],
+        points: [localPosition],
+        drawingPoints: [
+          DrawingPoint(
+            position: localPosition,
+            pressure: pressure,
+            tiltX: tiltX,
+            tiltY: tiltY,
+            velocity: 0.0,
+          ),
+        ],
         color: widget.isEraserMode ? Colors.transparent : widget.strokeColor,
         strokeWidth: widget.isEraserMode ? widget.eraserStrokeWidth : widget.strokeWidth,
         isEraser: widget.isEraserMode,
@@ -196,19 +221,55 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
     });
   }
 
-  void _onPanUpdate(DragUpdateDetails details) {
+  void _onPointerMove(PointerMoveEvent event) {
     if (!widget.isDrawingEnabled || _currentPath == null) return;
 
+    final localPosition = event.localPosition;
+    final pressure = event.pressure.clamp(0.0, 1.0);
+    // Note: Flutter's PointerEvent doesn't have tiltX/tiltY yet
+    // These would need to be obtained via platform channels
+    final tiltX = 0.0;
+    final tiltY = 0.0;
+
+    // Calculate velocity
+    double velocity = 0.0;
+    if (_lastPosition != null && _lastTime != null) {
+      final now = DateTime.now();
+      final deltaTime = now.difference(_lastTime!).inMicroseconds / 1000000.0;
+      if (deltaTime > 0) {
+        final distance = (localPosition - _lastPosition!).distance;
+        final currentVelocity = distance / deltaTime;
+        // Smooth velocity changes
+        final lastVelocity = _currentPath!.drawingPoints?.last.velocity ?? 0.0;
+        velocity = lastVelocity * _velocitySmoothingFactor + 
+                   currentVelocity * (1.0 - _velocitySmoothingFactor);
+      }
+    }
+
+    _lastPosition = localPosition;
+    _lastTime = DateTime.now();
+
     setState(() {
-      _currentPath!.points.add(details.localPosition);
+      _currentPath!.points.add(localPosition);
+      _currentPath!.drawingPoints?.add(
+        DrawingPoint(
+          position: localPosition,
+          pressure: pressure,
+          tiltX: tiltX,
+          tiltY: tiltY,
+          velocity: velocity,
+        ),
+      );
     });
   }
 
-  void _onPanEnd(DragEndDetails details) {
+  void _onPointerUp(PointerUpEvent event) {
     if (!widget.isDrawingEnabled || _currentPath == null) return;
 
     setState(() {
       _currentPath = null;
+      _lastPosition = null;
+      _lastTime = null;
     });
 
     // Save state before rasterizing (so undo stack has the path)
@@ -222,6 +283,20 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
       if (mounted) {
         _notifyStateChanged();
       }
+    });
+  }
+
+  void _onPointerCancel(PointerCancelEvent event) {
+    if (!widget.isDrawingEnabled || _currentPath == null) return;
+
+    setState(() {
+      // Remove the current path if cancelled
+      if (_paths.isNotEmpty && _paths.last == _currentPath) {
+        _paths.removeLast();
+      }
+      _currentPath = null;
+      _lastPosition = null;
+      _lastTime = null;
     });
   }
 
@@ -249,44 +324,7 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
     final lastPath = _paths.last;
     if (lastPath.points.isEmpty) return;
 
-    if (lastPath.isEraser) {
-      // Eraser mode: use dstOut blend mode to erase pixels
-      final eraserPaint = Paint()
-        ..blendMode = BlendMode.dstOut
-        ..strokeWidth = lastPath.strokeWidth
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..color = Colors.white; // Color doesn't matter for dstOut
-
-      if (lastPath.points.length == 1) {
-        eraserPaint.style = PaintingStyle.fill;
-        canvas.drawCircle(
-            lastPath.points[0], lastPath.strokeWidth / 2, eraserPaint);
-      } else {
-        final uiPath = _createSmoothPath(lastPath.points);
-        canvas.drawPath(uiPath, eraserPaint);
-      }
-    } else {
-      // Normal drawing
-      final paint = Paint()
-        ..color = lastPath.color
-        ..strokeWidth = lastPath.strokeWidth
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round;
-
-      if (lastPath.points.length == 1) {
-        final pointPaint = Paint()
-          ..color = lastPath.color
-          ..style = PaintingStyle.fill;
-        canvas.drawCircle(
-            lastPath.points[0], lastPath.strokeWidth / 2, pointPaint);
-      } else {
-        final uiPath = _createSmoothPath(lastPath.points);
-        canvas.drawPath(uiPath, paint);
-      }
-    }
+    _drawPathWithPressure(canvas, lastPath);
 
     final picture = recorder.endRecording();
     // Use physical pixel size for high DPI rendering
@@ -301,6 +339,176 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
       _rasterizedImage?.dispose();
       _rasterizedImage = image;
     });
+  }
+
+  /// Draws a path with pressure, tilt, and velocity support.
+  void _drawPathWithPressure(Canvas canvas, DrawingPath path) {
+    if (path.isEraser) {
+      // Eraser mode: use dstOut blend mode to erase pixels
+      if (path.points.length == 1) {
+        final eraserPaint = Paint()
+          ..blendMode = BlendMode.dstOut
+          ..style = PaintingStyle.fill
+          ..color = Colors.white;
+        final radius = path.strokeWidth / 2;
+        // Apply pressure if available
+        final pressure = (path.drawingPoints?.isNotEmpty ?? false) 
+            ? path.drawingPoints!.first.pressure 
+            : 1.0;
+        canvas.drawCircle(path.points[0], radius * pressure, eraserPaint);
+      } else {
+        _drawVariableWidthPath(
+          canvas,
+          path,
+          blendMode: BlendMode.dstOut,
+          color: Colors.white,
+        );
+      }
+    } else {
+      // Normal drawing
+      if (path.points.length == 1) {
+        final pointPaint = Paint()
+          ..color = path.color
+          ..style = PaintingStyle.fill;
+        final radius = path.strokeWidth / 2;
+        // Apply pressure if available
+        final pressure = (path.drawingPoints?.isNotEmpty ?? false) 
+            ? path.drawingPoints!.first.pressure 
+            : 1.0;
+        canvas.drawCircle(path.points[0], radius * pressure, pointPaint);
+      } else {
+        _drawVariableWidthPath(canvas, path, color: path.color);
+      }
+    }
+  }
+
+  /// Draws a path with variable width based on pressure, tilt, and velocity.
+  void _drawVariableWidthPath(
+    Canvas canvas,
+    DrawingPath path, {
+    BlendMode? blendMode,
+    Color? color,
+  }) {
+    final drawingPoints = path.drawingPoints;
+    final baseStrokeWidth = path.strokeWidth;
+    final pathColor = color ?? path.color;
+
+    if (drawingPoints == null || drawingPoints.length < 2) {
+      // Fallback to simple path if no pressure data
+      final paint = Paint()
+        ..color = pathColor
+        ..strokeWidth = baseStrokeWidth
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+      if (blendMode != null) paint.blendMode = blendMode;
+      final uiPath = _createSmoothPath(path.points);
+      canvas.drawPath(uiPath, paint);
+      return;
+    }
+
+    // Calculate width and opacity for each point with smoothing
+    // Apply moving average to smooth out pressure changes
+    final widths = <double>[];
+    final opacities = <double>[];
+    
+    // First pass: calculate raw values
+    final rawWidths = <double>[];
+    final rawOpacities = <double>[];
+    
+    for (var point in drawingPoints) {
+      // Calculate width for this point
+      final pressureFactor = 0.5 + (point.pressure * 0.5);
+      final normalizedVelocity = (point.velocity / 1000.0).clamp(0.0, 1.0);
+      final velocityFactor = 1.0 - (normalizedVelocity * 0.3); // 0.7 to 1.0
+      final width = baseStrokeWidth * pressureFactor * velocityFactor;
+      rawWidths.add(width);
+      
+      // Calculate opacity for this point
+      final opacity = (0.7 + (point.pressure * 0.3)).clamp(0.7, 1.0);
+      rawOpacities.add(opacity);
+    }
+    
+    // Second pass: apply smoothing using weighted moving average
+    const smoothingWindow = 3; // Use 3 points for smoothing
+    for (var i = 0; i < rawWidths.length; i++) {
+      double smoothedWidth = 0.0;
+      double smoothedOpacity = 0.0;
+      double totalWeight = 0.0;
+      
+      // Weighted average: center point has more weight
+      for (var j = -smoothingWindow; j <= smoothingWindow; j++) {
+        final idx = i + j;
+        if (idx >= 0 && idx < rawWidths.length) {
+          // Gaussian-like weight: closer points have more influence
+          final distance = j.abs();
+          final weight = distance == 0 ? 1.0 : (distance == 1 ? 0.5 : 0.25);
+          
+          smoothedWidth += rawWidths[idx] * weight;
+          smoothedOpacity += rawOpacities[idx] * weight;
+          totalWeight += weight;
+        }
+      }
+      
+      widths.add(smoothedWidth / totalWeight);
+      opacities.add(smoothedOpacity / totalWeight);
+    }
+
+    // Draw with smooth transitions between segments
+    // Use smooth curve interpolation for width and opacity
+    for (var i = 0; i < drawingPoints.length - 1; i++) {
+      final p0 = drawingPoints[i];
+      final p1 = drawingPoints[i + 1];
+      
+      // Use more sub-segments and smooth interpolation
+      const subSegments = 8; // More segments for smoother transition
+      
+      for (var j = 0; j < subSegments; j++) {
+        final t = j / subSegments;
+        final tNext = (j + 1) / subSegments;
+        
+        // Use cubic interpolation for smoother transitions
+        // This creates a more natural, smoother curve
+        double cubicInterpolate(double t) {
+          // Smooth step function: 3t^2 - 2t^3
+          return t * t * (3.0 - 2.0 * t);
+        }
+        
+        final smoothT0 = cubicInterpolate(t);
+        final smoothT1 = cubicInterpolate(tNext);
+        
+        // Interpolate position
+        final pos0 = Offset.lerp(p0.position, p1.position, smoothT0)!;
+        final pos1 = Offset.lerp(p0.position, p1.position, smoothT1)!;
+        
+        // Interpolate width with smooth curve
+        final width0 = widths[i] + (widths[i + 1] - widths[i]) * smoothT0;
+        final width1 = widths[i] + (widths[i + 1] - widths[i]) * smoothT1;
+        // Use average for the segment
+        final avgWidth = (width0 + width1) / 2.0;
+        
+        // Interpolate opacity with smooth curve
+        final opacity0 = opacities[i] + (opacities[i + 1] - opacities[i]) * smoothT0;
+        final opacity1 = opacities[i] + (opacities[i + 1] - opacities[i]) * smoothT1;
+        final avgOpacity = (opacity0 + opacity1) / 2.0;
+        
+        final paintColor = pathColor.withOpacity(avgOpacity);
+        
+        final paint = Paint()
+          ..color = paintColor
+          ..strokeWidth = avgWidth
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round;
+        if (blendMode != null) paint.blendMode = blendMode;
+        
+        // Draw line segment
+        final segmentPath = Path()
+          ..moveTo(pos0.dx, pos0.dy)
+          ..lineTo(pos1.dx, pos1.dy);
+        canvas.drawPath(segmentPath, paint);
+      }
+    }
   }
 
   Future<void> _rerasterizeAllPaths() async {
@@ -332,42 +540,7 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
       final path = _paths[i];
       if (path.points.isEmpty) continue;
 
-      if (path.isEraser) {
-        // Eraser mode: use dstOut blend mode to erase pixels
-        final eraserPaint = Paint()
-          ..blendMode = BlendMode.dstOut
-          ..strokeWidth = path.strokeWidth
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round
-          ..color = Colors.white;
-
-        if (path.points.length == 1) {
-          eraserPaint.style = PaintingStyle.fill;
-          canvas.drawCircle(path.points[0], path.strokeWidth / 2, eraserPaint);
-        } else {
-          final uiPath = _createSmoothPath(path.points);
-          canvas.drawPath(uiPath, eraserPaint);
-        }
-      } else {
-        // Normal drawing
-        final paint = Paint()
-          ..color = path.color
-          ..strokeWidth = path.strokeWidth
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round;
-
-        if (path.points.length == 1) {
-          final pointPaint = Paint()
-            ..color = path.color
-            ..style = PaintingStyle.fill;
-          canvas.drawCircle(path.points[0], path.strokeWidth / 2, pointPaint);
-        } else {
-          final uiPath = _createSmoothPath(path.points);
-          canvas.drawPath(uiPath, paint);
-        }
-      }
+      _drawPathWithPressure(canvas, path);
     }
 
     final picture = recorder.endRecording();
@@ -431,6 +604,9 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
     _undoStack.add(_paths
         .map((p) => DrawingPath(
               points: List.from(p.points),
+              drawingPoints: p.drawingPoints != null 
+                  ? List.from(p.drawingPoints!)
+                  : null,
               color: p.color,
               strokeWidth: p.strokeWidth,
               isEraser: p.isEraser,
@@ -468,6 +644,9 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
     _redoStack.add(_paths
         .map((p) => DrawingPath(
               points: List.from(p.points),
+              drawingPoints: p.drawingPoints != null 
+                  ? List.from(p.drawingPoints!)
+                  : null,
               color: p.color,
               strokeWidth: p.strokeWidth,
               isEraser: p.isEraser,
@@ -478,6 +657,9 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
     final restoredPaths = _undoStack.last
         .map((p) => DrawingPath(
               points: List.from(p.points),
+              drawingPoints: p.drawingPoints != null 
+                  ? List.from(p.drawingPoints!)
+                  : null,
               color: p.color,
               strokeWidth: p.strokeWidth,
               isEraser: p.isEraser,
@@ -512,6 +694,9 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
     _undoStack.add(_paths
         .map((p) => DrawingPath(
               points: List.from(p.points),
+              drawingPoints: p.drawingPoints != null 
+                  ? List.from(p.drawingPoints!)
+                  : null,
               color: p.color,
               strokeWidth: p.strokeWidth,
               isEraser: p.isEraser,
@@ -522,6 +707,9 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
         .removeLast()
         .map((p) => DrawingPath(
               points: List.from(p.points),
+              drawingPoints: p.drawingPoints != null 
+                  ? List.from(p.drawingPoints!)
+                  : null,
               color: p.color,
               strokeWidth: p.strokeWidth,
               isEraser: p.isEraser,
@@ -580,6 +768,23 @@ class _SlideDrawingCanvasState extends State<SlideDrawingCanvas> {
   }
 }
 
+/// Represents a point with pressure, tilt, and velocity information.
+class DrawingPoint {
+  const DrawingPoint({
+    required this.position,
+    this.pressure = 1.0,
+    this.tiltX = 0.0,
+    this.tiltY = 0.0,
+    this.velocity = 0.0,
+  });
+
+  final Offset position;
+  final double pressure; // 0.0 to 1.0
+  final double tiltX; // -1.0 to 1.0
+  final double tiltY; // -1.0 to 1.0
+  final double velocity; // pixels per second
+}
+
 /// Represents a drawing path.
 class DrawingPath {
   /// Creates a [DrawingPath].
@@ -588,10 +793,14 @@ class DrawingPath {
     required this.color,
     required this.strokeWidth,
     this.isEraser = false,
+    this.drawingPoints,
   });
 
   /// The points that make up this path.
   final List<Offset> points;
+
+  /// The drawing points with pressure, tilt, and velocity information.
+  final List<DrawingPoint>? drawingPoints;
 
   /// The color of the path.
   final Color color;
@@ -604,12 +813,14 @@ class DrawingPath {
 
   DrawingPath copyWith({
     List<Offset>? points,
+    List<DrawingPoint>? drawingPoints,
     Color? color,
     double? strokeWidth,
     bool? isEraser,
   }) {
     return DrawingPath(
       points: points ?? this.points,
+      drawingPoints: drawingPoints ?? this.drawingPoints,
       color: color ?? this.color,
       strokeWidth: strokeWidth ?? this.strokeWidth,
       isEraser: isEraser ?? this.isEraser,
@@ -668,44 +879,165 @@ class _DrawingPainter extends CustomPainter {
     for (var path in paths) {
       if (path.points.isEmpty) continue;
 
-      final paint = Paint()
-        ..strokeWidth = path.strokeWidth
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round;
-
       // Only use isEraserMode for paths that are currently being drawn
       // Existing paths should be displayed based on their own isEraser property
       // isEraserMode is only used to show preview for the current drawing path
       if (path.isEraser) {
         // Eraser path: show as semi-transparent red for visual feedback
         // Actual erasing happens during rasterization
-        paint.color = Colors.red.withOpacity(0.3);
-        paint.style = PaintingStyle.stroke;
-        paint.strokeWidth = path.strokeWidth;
-      } else {
-        paint.color = path.color;
-      }
-
-      if (path.points.length == 1) {
-        // 避免發生：down 下去會是一個很大的圓圈，但移動之後就會變小
-        // Draw a single point as a filled circle
-        if (path.isEraser) {
-          // Show eraser as semi-transparent circle
+        if (path.points.length == 1) {
           final eraserPaint = Paint()
             ..color = Colors.red.withOpacity(0.3)
             ..style = PaintingStyle.fill;
-          canvas.drawCircle(path.points[0], path.strokeWidth / 2, eraserPaint);
+          final radius = path.strokeWidth / 2;
+          final pressure = (path.drawingPoints?.isNotEmpty ?? false) 
+              ? path.drawingPoints!.first.pressure 
+              : 1.0;
+          canvas.drawCircle(path.points[0], radius * pressure, eraserPaint);
         } else {
+          _drawVariableWidthPathPreview(canvas, path, 
+              color: Colors.red.withOpacity(0.3));
+        }
+      } else {
+        // Normal drawing with pressure support
+        if (path.points.length == 1) {
           final pointPaint = Paint()
             ..color = path.color
             ..style = PaintingStyle.fill;
-          canvas.drawCircle(path.points[0], path.strokeWidth / 2, pointPaint);
+          final radius = path.strokeWidth / 2;
+          final pressure = (path.drawingPoints?.isNotEmpty ?? false) 
+              ? path.drawingPoints!.first.pressure 
+              : 1.0;
+          canvas.drawCircle(path.points[0], radius * pressure, pointPaint);
+        } else {
+          _drawVariableWidthPathPreview(canvas, path, color: path.color);
         }
-      } else {
-        // Draw a path connecting all points with smooth curves
-        final uiPath = _createSmoothPath(path.points);
-        canvas.drawPath(uiPath, paint);
+      }
+    }
+  }
+
+  /// Draws a path with variable width for preview (same logic as rasterization).
+  void _drawVariableWidthPathPreview(
+    Canvas canvas,
+    DrawingPath path, {
+    Color? color,
+  }) {
+    final drawingPoints = path.drawingPoints;
+    final baseStrokeWidth = path.strokeWidth;
+    final pathColor = color ?? path.color;
+
+    if (drawingPoints == null || drawingPoints.length < 2) {
+      // Fallback to simple path if no pressure data
+      final paint = Paint()
+        ..color = pathColor
+        ..strokeWidth = baseStrokeWidth
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+      final uiPath = _createSmoothPath(path.points);
+      canvas.drawPath(uiPath, paint);
+      return;
+    }
+
+    // Calculate width and opacity for each point with smoothing
+    // Apply moving average to smooth out pressure changes
+    final widths = <double>[];
+    final opacities = <double>[];
+    
+    // First pass: calculate raw values
+    final rawWidths = <double>[];
+    final rawOpacities = <double>[];
+    
+    for (var point in drawingPoints) {
+      // Calculate width for this point
+      final pressureFactor = 0.5 + (point.pressure * 0.5);
+      final normalizedVelocity = (point.velocity / 1000.0).clamp(0.0, 1.0);
+      final velocityFactor = 1.0 - (normalizedVelocity * 0.3); // 0.7 to 1.0
+      final width = baseStrokeWidth * pressureFactor * velocityFactor;
+      rawWidths.add(width);
+      
+      // Calculate opacity for this point
+      final opacity = (0.7 + (point.pressure * 0.3)).clamp(0.7, 1.0);
+      rawOpacities.add(opacity);
+    }
+    
+    // Second pass: apply smoothing using weighted moving average
+    const smoothingWindow = 3; // Use 3 points for smoothing
+    for (var i = 0; i < rawWidths.length; i++) {
+      double smoothedWidth = 0.0;
+      double smoothedOpacity = 0.0;
+      double totalWeight = 0.0;
+      
+      // Weighted average: center point has more weight
+      for (var j = -smoothingWindow; j <= smoothingWindow; j++) {
+        final idx = i + j;
+        if (idx >= 0 && idx < rawWidths.length) {
+          // Gaussian-like weight: closer points have more influence
+          final distance = j.abs();
+          final weight = distance == 0 ? 1.0 : (distance == 1 ? 0.5 : 0.25);
+          
+          smoothedWidth += rawWidths[idx] * weight;
+          smoothedOpacity += rawOpacities[idx] * weight;
+          totalWeight += weight;
+        }
+      }
+      
+      widths.add(smoothedWidth / totalWeight);
+      opacities.add(smoothedOpacity / totalWeight);
+    }
+
+    // Draw with smooth transitions between segments
+    // Use smooth curve interpolation for width and opacity
+    for (var i = 0; i < drawingPoints.length - 1; i++) {
+      final p0 = drawingPoints[i];
+      final p1 = drawingPoints[i + 1];
+      
+      // Use more sub-segments and smooth interpolation
+      const subSegments = 8; // More segments for smoother transition
+      
+      for (var j = 0; j < subSegments; j++) {
+        final t = j / subSegments;
+        final tNext = (j + 1) / subSegments;
+        
+        // Use cubic interpolation for smoother transitions
+        // This creates a more natural, smoother curve
+        double cubicInterpolate(double t) {
+          // Smooth step function: 3t^2 - 2t^3
+          return t * t * (3.0 - 2.0 * t);
+        }
+        
+        final smoothT0 = cubicInterpolate(t);
+        final smoothT1 = cubicInterpolate(tNext);
+        
+        // Interpolate position
+        final pos0 = Offset.lerp(p0.position, p1.position, smoothT0)!;
+        final pos1 = Offset.lerp(p0.position, p1.position, smoothT1)!;
+        
+        // Interpolate width with smooth curve
+        final width0 = widths[i] + (widths[i + 1] - widths[i]) * smoothT0;
+        final width1 = widths[i] + (widths[i + 1] - widths[i]) * smoothT1;
+        // Use average for the segment
+        final avgWidth = (width0 + width1) / 2.0;
+        
+        // Interpolate opacity with smooth curve
+        final opacity0 = opacities[i] + (opacities[i + 1] - opacities[i]) * smoothT0;
+        final opacity1 = opacities[i] + (opacities[i + 1] - opacities[i]) * smoothT1;
+        final avgOpacity = (opacity0 + opacity1) / 2.0;
+        
+        final paintColor = pathColor.withOpacity(avgOpacity);
+        
+        final paint = Paint()
+          ..color = paintColor
+          ..strokeWidth = avgWidth
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round;
+        
+        // Draw line segment
+        final segmentPath = Path()
+          ..moveTo(pos0.dx, pos0.dy)
+          ..lineTo(pos1.dx, pos1.dy);
+        canvas.drawPath(segmentPath, paint);
       }
     }
   }

@@ -812,93 +812,99 @@ class SlideDeckState extends State<SlideDeck> {
                 visible: true,
               ),
             ),
-          // Drawing toolbar
-          if (_isDrawingEnabled && !_presenterView)
-            Positioned(
-              top: 16.0,
-              left: 16.0,
-              child: DrawingToolbar(
-                onUndo: () {
-                  final state = _drawingCanvasKey.currentState;
-                  if (state != null) {
-                    (state as dynamic).undo();
-                    // Update drawings map after undo
-                    setState(() {
-                      _drawings['$_index'] = (state as dynamic).paths;
-                    });
-                  }
-                },
-                onRedo: () {
-                  final state = _drawingCanvasKey.currentState;
-                  if (state != null) {
-                    (state as dynamic).redo();
-                    // Update drawings map after redo
-                    setState(() {
-                      _drawings['$_index'] = (state as dynamic).paths;
-                    });
-                  }
-                },
-                onClear: () {
-                  final state = _drawingCanvasKey.currentState;
-                  if (state != null) {
-                    (state as dynamic).clear();
-                  }
-                  setState(() {
-                    _drawings['$_index'] = [];
-                  });
-                },
-                onStrokeWidthChanged: (width) {
-                  setState(() {
-                    _strokeWidth = width;
-                  });
-                },
-                strokeWidth: _strokeWidth,
-                strokeColor: _strokeColor,
-                onStrokeColorChanged: (color) {
-                  setState(() {
-                    _strokeColor = color;
-                  });
-                },
-                canUndo: _canUndo,
-                canRedo: _canRedo,
-                isEraserMode: _isEraserMode,
-                onToggleEraser: _onToggleEraser,
-              ),
-            ),
           if (!widget.autoplay && !_presenterView)
             Positioned(
               bottom: 16.0,
               right: 16.0,
-              child: MouseRegion(
-                onEnter: (event) {
-                  setState(() {
-                    _mouseInsideControls = true;
-                  });
-                },
-                onExit: (event) {
-                  setState(() {
-                    _mouseInsideControls = false;
-                  });
-                },
-                child: DeckControls(
-                  visible: _controlsAlwaysVisible ||
-                      _mouseMovedRecently ||
-                      _mouseInsideControls,
-                  onPrevious: _onPrevious,
-                  onNext: _onNext,
-                  onTogglePresenterView: _onTogglePresenterView,
-                  actions: [
-                    DrawingToggleButton(
-                      isDrawingEnabled: _isDrawingEnabled,
-                      onToggle: _onToggleDrawing,
-                      onClear: _onClearDrawing,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Drawing toolbar
+                  if (_isDrawingEnabled && !_presenterView)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: DrawingToolbar(
+                        onUndo: () {
+                          final state = _drawingCanvasKey.currentState;
+                          if (state != null) {
+                            (state as dynamic).undo();
+                            // Update drawings map after undo
+                            setState(() {
+                              _drawings['$_index'] = (state as dynamic).paths;
+                            });
+                          }
+                        },
+                        onRedo: () {
+                          final state = _drawingCanvasKey.currentState;
+                          if (state != null) {
+                            (state as dynamic).redo();
+                            // Update drawings map after redo
+                            setState(() {
+                              _drawings['$_index'] = (state as dynamic).paths;
+                            });
+                          }
+                        },
+                        onClear: () {
+                          final state = _drawingCanvasKey.currentState;
+                          if (state != null) {
+                            (state as dynamic).clear();
+                          }
+                          setState(() {
+                            _drawings['$_index'] = [];
+                          });
+                        },
+                        onStrokeWidthChanged: (width) {
+                          setState(() {
+                            _strokeWidth = width;
+                          });
+                        },
+                        strokeWidth: _strokeWidth,
+                        strokeColor: _strokeColor,
+                        onStrokeColorChanged: (color) {
+                          setState(() {
+                            _strokeColor = color;
+                          });
+                        },
+                        canUndo: _canUndo,
+                        canRedo: _canRedo,
+                        isEraserMode: _isEraserMode,
+                        onToggleEraser: _onToggleEraser,
+                      ),
                     ),
-                    if (widget.controlActions != null) ...[
-                      const SizedBox(width: 8),
-                      ...widget.controlActions!
-                    ],
-                  ],
-                ),
+                  MouseRegion(
+                    onEnter: (event) {
+                      setState(() {
+                        _mouseInsideControls = true;
+                      });
+                    },
+                    onExit: (event) {
+                      setState(() {
+                        _mouseInsideControls = false;
+                      });
+                    },
+                    child: DeckControls(
+                      visible: _controlsAlwaysVisible ||
+                          _mouseMovedRecently ||
+                          _mouseInsideControls,
+                      onPrevious: _onPrevious,
+                      onNext: _onNext,
+                      onTogglePresenterView: _onTogglePresenterView,
+                      actions: [
+                        DrawingToggleButton(
+                          isDrawingEnabled: _isDrawingEnabled,
+                          onToggle: _onToggleDrawing,
+                          onClear: _onClearDrawing,
+                        ),
+                        if (widget.controlActions != null) ...[
+                          const SizedBox(width: 8),
+                          ...widget.controlActions!
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           if (widget.showPageNumber && !_presenterView)

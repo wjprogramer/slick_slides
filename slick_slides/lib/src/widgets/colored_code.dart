@@ -6,6 +6,7 @@ import 'package:slick_slides/src/deck/slide_config.dart';
 const _dimmedCodeOpacity = 0.3;
 const _dimCodeDuration = Duration(milliseconds: 500);
 
+// TODO: 現在如果一行太長，會換行到行號下面
 /// A widget that displays and optionally animates code with syntax
 /// highlighting.
 class ColoredCode extends StatefulWidget {
